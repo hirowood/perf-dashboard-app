@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>自己分析・パフォーマンス最適化ダッシュボード</title>
+
+  <!-- Tailwind CSS（CDN版：プロトタイピング向け）
+       本番運用は build（PostCSS / Tailwind CLI / Vite）推奨 -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- CDN版でも細部だけ追加でCSSが必要なケースがある（privacyのぼかし等） -->
+  <link rel="stylesheet" href="./style.css" />
+</head>
+
+<body class="bg-slate-50 text-slate-900">
+  <!-- Header -->
+  <header class="sticky top-0 z-10 border-b border-slate-200 bg-white/80 backdrop-blur">
+    <div class="mx-auto max-w-5xl px-4 py-3 flex items-center justify-between gap-3">
+      <div>
+        <h1 class="text-lg font-semibold">自己分析・パフォーマンス最適化</h1>
+        <p class="text-xs text-slate-500">localStorage / 相関ゲート / 週次レビュー / 曜日別平均 / 推移グラフ</p>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button id="privacyToggle" type="button"
+          class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-50 active:scale-[0.99]">
+          プライバシー
+        </button>
+
+        <button id="forceSave" type="button"
+          class="rounded-xl bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-800 active:scale-[0.99]">
+          今すぐ保存
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Alerts -->
+  <div class="mx-auto max-w-5xl px-4 pt-3">
+    <div id="alertArea" class="space-y-2"></div>
+    <div id="autosaveHint" class="mt-2 text-xs text-slate-500"></div>
+  </div>
+
+  <!-- Tabs -->
+  <nav class="mx-auto max-w-5xl px-4 pt-4">
+    <div class="flex gap-2 overflow-x-auto pb-1">
+      <button class="tab is-active rounded-xl px-3 py-2 text-sm" data-view="day" type="button">日</button>
+      <button class="tab rounded-xl px-3 py-2 text-sm" data-view="week" type="button">週</button>
+      <button class="tab rounded-xl px-3 py-2 text-sm" data-view="month" type="button">月</button>
+      <button class="tab rounded-xl px-3 py-2 text-sm" data-view="weekday" type="button">曜日別</button>
+    </div>
+  </nav>
+
+  <main class="mx-auto max-w-5xl px-4 py-4 space-y-4">
+
+    <!-- DATE NAV -->
+    <section class="rounded-2xl border border-slate-200 bg-white p-4">
+      <div class="flex items-center justify-between gap-2 flex-wrap">
+        <div class="flex items-center gap-2">
+          <button id="prevDay" type="button" class="rounded-xl border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50">← 前日</button>
+          <button id="nextDay" type="button" class="rounded-xl border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50">翌日 →</button>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <label class="text-sm text-slate-600">日付</label>
+          <input id="datePicker" type="date" class="rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+        </div>
+      </div>
+    </section>
+
+    <!-- Panels -->
+    <section data-view-panel="day" class="view-panel is-active space-y-4">
+
+      <!-- Score cards -->
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div class="rounded-2xl border border-slate-200 bg-white p-4">
+          <div class="text-xs text-slate-500">気分</div>
+          <div id="cardMood" class="text-3xl font-semibold">-</div>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white p-4">
+          <div class="text-xs text-slate-500">パフォーマンス</div>
+          <div id="cardPerformance" class="text-3xl font-semibold">-</div>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white p-4">
+          <div class="text-xs text-slate-500">睡眠</div>
+          <div class="flex items-end gap-2">
+            <div id="cardSleepHours" class="text-3xl font-semibold">-</div>
+            <div id="cardSleepWarn" class="text-xs"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Daily input -->
+      <div class="rounded-2xl border border-slate-200 bg-white p-4">
+        <h2 class="text-base font-semibold">日次入力（1分）</h2>
+        <p class="mt-1 text-xs text-slate-500">タップで1〜5。自由記述はプライバシーモードでぼかし。</p>
+
+        <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <!-- ratings -->
+          <div class="space-y-3">
+            <div class="field">
+              <div class="label">mood</div>
+              <div class="rating" data-field="mood"></div>
+            </div>
+            <div class="field">
+              <div class="label">sleepQuality</div>
+              <div class="rating" data-field="sleepQuality"></div>
+            </div>
+            <div class="field">
+              <div class="label">physical</div>
+              <div class="rating" data-field="physical"></div>
+            </div>
+            <div class="field">
+              <div class="label">mental</div>
+              <div class="rating" data-field="mental"></div>
+            </div>
+            <div class="field">
+              <div class="label">focus</div>
+              <div class="rating" data-field="focus"></div>
+            </div>
+            <div class="field">
+              <div class="label">performance</div>
+              <div class="rating" data-field="performance"></div>
+            </div>
+          </div>
+
+          <!-- numeric / text -->
+          <div class="space-y-3">
+            <div class="field">
+              <div class="label">sleepHours</div>
+              <input id="sleepHours" type="number" step="0.25" min="0" max="24"
+                class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" placeholder="例: 6.5" />
+            </div>
+
+            <div class="field">
+              <div class="label">wakeTime</div>
+              <input id="wakeTime" type="time" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+            </div>
+
+            <div class="field">
+              <div class="label">report</div>
+              <textarea id="report" rows="4"
+                class="privacy-hide w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                placeholder="今日の出来事（短く）"></textarea>
+            </div>
+
+            <div class="field">
+              <div class="label">hypothesis</div>
+              <textarea id="hypothesis" rows="3"
+                class="privacy-hide w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                placeholder="今日の仮説・実験メモ"></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Trend (B) -->
+      <div class="rounded-2xl border border-slate-200 bg-white p-4">
+        <h2 class="text-base font-semibold">推移グラフ（7日 / 30日）</h2>
+        <div class="mt-3 flex flex-wrap items-center justify-between gap-2">
+          <div class="flex flex-wrap items-center gap-2">
+            <button class="btn-ghost" data-trend-range="7" type="button">7日</button>
+            <button class="btn-ghost" data-trend-range="30" type="button">30日</button>
+
+            <select id="trendMetric" class="rounded-xl border border-slate-200 px-3 py-2 text-sm">
+              <option value="performance">performance</option>
+              <option value="mood">mood</option>
+              <option value="sleepHours">sleepHours</option>
+              <option value="focus">focus</option>
+              <option value="mental">mental</option>
+              <option value="physical">physical</option>
+              <option value="sleepQuality">sleepQuality</option>
+              <option value="wakeDevAbs">wakeDevAbs</option>
+            </select>
+          </div>
+          <div id="trendHint" class="text-xs text-slate-500"></div>
+        </div>
+
+        <div class="mt-3">
+          <canvas id="trendCanvas" width="720" height="240"
+            class="w-full rounded-2xl border border-slate-200 bg-slate-50"></canvas>
+          <div id="trendNoData" class="mt-2 text-xs text-slate-500"></div>
+        </div>
+      </div>
+
+      <!-- Heatmap -->
+      <div class="rounded-2xl border border-slate-200 bg-white p-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-base font-semibold">ヒートマップ（曜日 × 週）</h2>
+          <p class="text-xs text-slate-500">performance=2以下 / sleepHours=5以下 を強調</p>
+        </div>
+        <div id="heatmap" class="mt-3 overflow-x-auto"></div>
+      </div>
+
+      <!-- Correlation -->
+      <div class="rounded-2xl border border-slate-200 bg-white p-4">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h2 class="text-base font-semibold">相関（ゲート付き）</h2>
+          <button id="recalcCorrelation" type="button" class="rounded-xl border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50">
+            再計算
+          </button>
+        </div>
+
+        <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div class="rounded-2xl border border-slate-200 p-3">
+            <div class="text-xs text-slate-500">n閾値</div>
+            <input id="gateNMin" type="number" min="2" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+          </div>
+          <div class="rounded-2xl border border-slate-200 p-3">
+            <div class="text-xs text-slate-500">|r|閾値</div>
+            <input id="gateRAbsMin" type="number" step="0.01" min="0" max="1" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+          </div>
+          <div class="flex items-end">
+            <button id="saveGates" type="button"
+              class="w-full rounded-xl bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-800">
+              ゲート保存
+            </button>
+          </div>
+        </div>
+
+        <div id="correlationList" class="mt-3 space-y-2"></div>
+        <pre id="generatedHypothesis" class="mt-3 whitespace-pre-wrap rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm"></pre>
+      </div>
+    </section>
+
+    <section data-view-panel="week" class="view-panel space-y-4">
+      <div class="rounded-2xl border border-slate-200 bg-white p-4">
+        <h2 class="text-base font-semibold">週次レビュー</h2>
+        <p class="mt-1 text-xs text-slate-500">ボタンでドラフト生成→編集→保存</p>
+
+        <div class="mt-3 flex flex-wrap gap-2">
+          <button id="generateWeeklyReview" type="button"
+            class="rounded-xl border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50">ドラフト生成</button>
+          <button id="saveWeeklyReview" type="button"
+            class="rounded-xl bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-800">保存</button>
+        </div>
+
+        <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div class="rounded-2xl border border-slate-200 p-3">
+            <div class="text-xs text-slate-500">Low Performance Day</div>
+            <div id="weeklyLowDay" class="mt-1 text-sm">-</div>
+          </div>
+          <div class="rounded-2xl border border-slate-200 p-3">
+            <div class="text-xs text-slate-500">Best Practice</div>
+            <div id="weeklyBestPractice" class="mt-1 text-sm">-</div>
+          </div>
+        </div>
+
+        <div class="mt-3 space-y-3">
+          <div class="field">
+            <div class="label">reviewText</div>
+            <textarea id="weeklyReviewText" rows="5"
+              class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"></textarea>
+          </div>
+
+          <div class="field">
+            <div class="label">generatedHypothesis</div>
+            <textarea id="weeklyGeneratedHypothesis" rows="3"
+              class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"></textarea>
+          </div>
+
+          <div class="field">
+            <div class="label">targetMetrics（カンマ区切り）</div>
+            <input id="weeklyTargetMetrics" type="text"
+              class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" placeholder="sleepHours, performance, mood" />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section data-view-panel="month" class="view-panel space-y-4">
+      <div class="rounded-2xl border border-slate-200 bg-white p-4">
+        <h2 class="text-base font-semibold">月（スケルトン）</h2>
+        <p class="mt-1 text-xs text-slate-500">月次集計はここに追加予定（MVPでは未実装）</p>
+      </div>
+    </section>
+
+    <section data-view-panel="weekday" class="view-panel space-y-4">
+      <div class="rounded-2xl border border-slate-200 bg-white p-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-base font-semibold">曜日別平均（A）</h2>
+          <p class="text-xs text-slate-500">データが溜まるほど精度が上がる</p>
+        </div>
+        <div id="weekdayAvg" class="mt-3 overflow-x-auto"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="mx-auto max-w-5xl px-4 pb-8 pt-4 text-xs text-slate-500">
+    <p>保存先: localStorage。データの扱いは自己責任で。必要なら export/import を次に実装。</p>
+  </footer>
+
+  <!-- JS entry -->
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>
